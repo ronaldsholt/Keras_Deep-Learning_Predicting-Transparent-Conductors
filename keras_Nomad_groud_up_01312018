@@ -3,7 +3,7 @@
 """
 Created on Wed Jan 31 12:26:24 2018
 
-@author: kra7830
+@author: RSH
 """
 
 import pandas as pd
@@ -197,22 +197,7 @@ scores = [np_loss(y, pred) for y, pred in zip(y_train.as_matrix(),
 final_loss = np.average(scores)
 print("Loss from numpy = {}".format(final_loss))
 
-plt.subplot(121)
-plt.title("Individual scores")
-plt.plot(scores)
-plt.ylim(0, 1)
-plt.ylabel('RMSLE')
-plt.xlabel("Data point")
-plt.subplot(122)
-plt.title("Histogram")
-plt.hist(scores, 50, density=True, orientation='horizontal')
-plt.ylim(0, 1)
-plt.tight_layout()
-#plt.savefig(hist_score_time, bbox_inches='tight')
-plt.show()
 
-#scores = model.evaluate(X_train, y_train, verbose=0, batch_size=32)
-#print("%s: %f" % (model.metrics_names[0], scores))
 
 
 
