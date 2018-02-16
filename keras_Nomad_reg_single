@@ -1,0 +1,193 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Feb  4 12:54:32 2018
+
+@author: kra7830
+"""
+
+import pandas as pd
+import numpy as np
+import keras
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+import tensorflow as tf
+import os
+import matplotlib.pyplot as plt
+import time
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from spacegroups import load_test, load_train
+
+print("Loading data")
+train = load_train()
+test = load_test()
+print("Done loading data")
+
+
+# fix random seed for reproducibility
+seed = 155
+np.random.seed(seed)
+
+#train = pd.read_csv('../df_train.csv')
+#test = pd.read_csv('../df_test.csv')
+
+
+# remove ID from R work, and remove ID colunm from sample... 
+train = train.drop('Unnamed: 0.1', axis=1)
+train = train.drop('id', axis=1)
+test = test.drop('Unnamed: 0.1', axis=1)
+test = test.drop('id', axis=1)
+
+### Only do Bandgap enegry first
+train = train[['spacegroup','number_of_total_atoms','percent_atom_al', 'percent_atom_ga', 'percent_atom_in', 'lattice_vector_1_ang', 'lattice_vector_2_ang', 'lattice_vector_3_ang', 'lattice_angle_alpha_degree', 'lattice_angle_beta_degree', 
+ 'lattice_angle_gamma_degree', 'bandgap_energy_ev', 'atomic_densities',
+    'vol', 'atomic_densities',
+       'avg_mass', 'avg_HOMO', 'avg_LUMO', 'avg_IP', 'avg_rd_max',
+       'avg_rs_max', 'avg_rp_max', 'avg_EA', 'avg_Eletronegativity',
+       'Ga_0', 'Ga_1', 'Ga_2', 'Ga_3', 'Ga_4', 'Ga_5',
+        'Al_0', 'Al_1', 'Al_2', 'Al_3', 'Al_4', 'Al_5', 'O_0',
+        'O_1', 'O_2', 'O_3', 'O_4', 'O_5', 'In_0', 'In_1',
+        'In_2', 'In_3', 'In_4', 'In_5']]
+
+test = test[['spacegroup','number_of_total_atoms', 'percent_atom_al', 'percent_atom_ga', 'percent_atom_in', 'lattice_vector_1_ang', 'lattice_vector_2_ang', 'lattice_vector_3_ang', 'lattice_angle_alpha_degree', 'lattice_angle_beta_degree', 
+ 'lattice_angle_gamma_degree', 'atomic_densities', 'vol', 'atomic_densities',
+       'avg_mass', 'avg_HOMO', 'avg_LUMO', 'avg_IP', 'avg_rd_max',
+       'avg_rs_max', 'avg_rp_max', 'avg_EA', 'avg_Eletronegativity',
+       'Ga_0', 'Ga_1', 'Ga_2', 'Ga_3', 'Ga_4', 'Ga_5',
+        'Al_0', 'Al_1', 'Al_2', 'Al_3', 'Al_4', 'Al_5', 'O_0',
+        'O_1', 'O_2', 'O_3', 'O_4', 'O_5', 'In_0', 'In_1',
+        'In_2', 'In_3', 'In_4', 'In_5']]
+
+
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+t1 = 'formation_energy_ev_natom'
+t2 = 'bandgap_energy_ev'
+
+transform_columns = ['number_of_total_atoms','percent_atom_al', 'percent_atom_ga', 'percent_atom_in', 'lattice_vector_1_ang', 'lattice_vector_2_ang', 'lattice_vector_3_ang', 'lattice_angle_alpha_degree', 
+                     'lattice_angle_beta_degree', 'lattice_angle_gamma_degree', 'atomic_densities', 'vol', 'atomic_densities','avg_mass', 'avg_HOMO', 'avg_LUMO', 'avg_IP', 'avg_rd_max',
+       'avg_rs_max', 'avg_rp_max', 'avg_EA', 'avg_Eletronegativity',
+       'Ga_0', 'Ga_1', 'Ga_2', 'Ga_3', 'Ga_4', 'Ga_5',
+        'Al_0', 'Al_1', 'Al_2', 'Al_3', 'Al_4', 'Al_5', 'O_0',
+        'O_1', 'O_2', 'O_3', 'O_4', 'O_5', 'In_0', 'In_1',
+        'In_2', 'In_3', 'In_4', 'In_5']
+
+feature_columns = ['spacegroup'] + transform_columns
+
+# Scaling / Normalizing the data
+scaler = MinMaxScaler()
+#scaler = StandardScaler()
+#scaler.fit(all[transform_columns])
+scaler.fit(train[transform_columns])
+scaler.fit(test[transform_columns])
+train[transform_columns] = scaler.transform(train[transform_columns])
+test[transform_columns] = scaler.transform(test[transform_columns])
+
+""" setting up split ratio """
+
+X_train, X_validation = train_test_split(train, test_size=0.25, 
+                                         random_state=seed)
+
+y_train = np.log1p(X_train[[t2]]) 
+X_train = X_train.drop([t2], axis=1) # Drop the Target Columns
+
+y_validation = np.log1p(X_validation[[t2]])
+X_validation = X_validation.drop([t2], axis=1)
+
+print(X_train.shape, y_train.shape)
+print(X_validation.shape, y_validation.shape)
+
+
+np.random.seed(seed)
+
+model = Sequential() # create model
+model.add(Dense(47, input_dim=47, activation='relu')) # hidden layer
+model.add(Dense(94, activation='relu')) 
+model.add(Dense(16, activation='relu'))#Hidden layer #2
+model.add(Dense(22, activation='relu'))#Hidden layer #2
+model.add(Dense(16, activation='relu'))#Hidden layer #2
+model.add(Dense(1, activation=None, name='output')) # output layer
+
+#########################
+### compile the model ##
+####################### 
+from keras import optimizers
+#sgd = optimizers.Nadam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=None, schedule_decay=0.004)
+model.compile(loss='mse', 
+              optimizer='adam', 
+              metrics=['mean_squared_logarithmic_error', 'acc'])
+
+### Try with adam eventually.... 
+monitor = EarlyStopping(monitor='val_loss', 
+                        min_delta=1e-3, 
+                        patience=5, 
+                        verbose=1, mode='auto')
+checkpointer = ModelCheckpoint(filepath="best_weights_1.hdf5", 
+                               verbose=0, save_best_only=True) # save best model
+
+
+# Fitting the model
+modeled = model.fit(X_train, y_train, 
+                               epochs=1000, 
+                               verbose=0, 
+                               batch_size=16,
+                               initial_epoch=0,
+                               shuffle=True,
+                               callbacks=[monitor,checkpointer])
+
+#model.fit(x,y,validation_data=(x_test,y_test),callbacks=[monitor,checkpointer],verbose=0,epochs=1000)
+model.load_weights('best_weights.hdf5')
+
+pred_test = model.predict(X_validation, verbose=0, batch_size=16)
+plt.plot(pred_test[:,0], y_validation.iloc[:,0], 'o')
+#plt.plot(pred_test[:,0], y_validation.iloc[:,0], 'o')
+
+# Plot the chart
+
+#Evaluating the model
+
+fig, (ax1, ax2) = plt.subplots(2, 1)
+ax1.plot(range(len(modeled.history['mean_squared_logarithmic_error'])), 
+         modeled.history['mean_squared_logarithmic_error'],linestyle='-', 
+         color='blue',label='Training', lw=2)
+ax2.plot(range(len(modeled.history['acc'])), 
+         modeled.history['acc'],linestyle='-', 
+         color='blue',label='Training', lw=2)
+
+leg = ax1.legend(bbox_to_anchor=(0.7, 0.9), 
+                 loc=2, borderaxespad=0.,fontsize=13)
+ax1.set_xticklabels('')
+ax2.set_xlabel('# Epochs',fontsize=14)
+ax1.set_ylabel('MSLE',fontsize=14)
+ax2.set_ylabel('Accuracy',fontsize=14)
+plt.show()
+
+
+def np_loss(y_true, y_pred):
+    error1 = np.square(y_true[0] - y_pred[0])
+    error2 = np.square(y_true[1] - y_pred[1])
+    return np.sqrt((error1+error2)/2)
+
+
+
+test_sets = model.predict(X_train, verbose=False, batch_size=32)
+scores = [np_loss(y, pred) for y, pred in zip(y_train,
+                                                  test_sets)]
+final_loss = np.average(scores)
+print("Loss from numpy = {}".format(final_loss))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
